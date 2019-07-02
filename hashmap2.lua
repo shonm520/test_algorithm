@@ -1,5 +1,5 @@
 --[[
-    hashmap 元素冲突时开链的实现(由于lua不习惯表示链表，故用table实现)
+    hashmap 元素冲突时开链的实现
     auth:shonm
     date:20190701
 ]]
@@ -29,18 +29,11 @@ function H.insert(key, val)
     if item then                    --有碰撞
         if H.find(key) then         --重复插入
             return 
-        else
-            if not H.items[k].siblings then      --第一次碰撞
-                H.items[k].siblings = {}
-                table.insert(H.items[k].siblings, {key = item.key, val = item.val})
-                table.insert(H.items[k].siblings, {key = key, val = val})
-                H.items[k].key = nil
-                H.items[k].val = nil
-            else
-                table.insert(H.items[k].siblings, {key = key, val = val})
-            end
+        else                        --把新元素作为表头
+            H.items[k] = {key = key, val = val}
+            H.items[k].next = item
         end
-    else                                  --没碰撞直接加入
+    else                            --没碰撞直接加入
         H.items[k] = {key = key, val = val}
         return true
     end
@@ -63,29 +56,32 @@ function H.find(key)                      --返回值，slot id
     local k = hash(key, H.cap)
     local item = H.items[k]
     if item then
-        if next(item.siblings or {}) then
-            for _, v in pairs(item.siblings) do 
-                if v.key == key then
-                    return v.val, k
-                end
-            end
-        else
+        repeat 
             if item.key == key then
                 return item.val, k
+            else
+                item = item.next
             end
-        end
+        until (not item)
     end
 end
 
 function H.remove(key)
     local _, k = H.find(key)
     if k then 
-        local item = H.items[k].siblings
-        if next(item or {}) then
-            for i = #item, 1 do
-                if item[i].key == key then 
-                    table.remove(item, item[i])
-                end
+        local item = H.items[k]
+        if item.next then
+            if item.key == key then
+                H.items[k] = item.next
+            else
+                repeat
+                    if item.next.key == key then
+                        item.next = item.next.next
+                        break
+                    else
+                        item = item.next
+                    end
+                until (not item)                
             end
         else
             H.items[k] = nil
@@ -95,16 +91,32 @@ end
 
 function H.print()
     for k, v in pairs(H.items) do 
-        if not v.del then
-            print(string.format('slot:%d, key:%d, val:%d', k, v.key, v.val))
-        end
+        repeat
+            local next = v.next
+            print(string.format('slot:%d, key:%d, val:%d', k, v.key, v.val)) 
+        until (not next)
     end
+end
+
+
+t = {1,2,3,4,5,6,7}
+for i = #t , 1, -1 do
+    table.remove(t, i)
+end
+t = {1,2,3,4,5,6,7}
+for k, v in pairs(t) do
+    table.remove(t, k)
 end
 
 H.init(10)
 H.insert(11, 110)
 H.insert(21, 210)
 H.insert(31, 310)
+
+H.remove(31)
+H.remove(11)
+H.remove(21)
+
 
 -- H.insert(32, 320)
 -- H.insert(36, 360)
@@ -118,11 +130,10 @@ H.insert(38, 380)
 H.insert(9, 990)
 
 H.remove(11)
+H.remove(38)
 H.insert(1, 10)
 
 
 
 local v = H.find(21)
 H.print()
-
-
